@@ -15,12 +15,13 @@
 #define DFS_MAXCNT 97000000
 //Real should be 3e6
 //#define TEST_LOCAL973 233
-#define YStart G.Nc+G.Ec
+#define YStart G.Ec
 using namespace std;
 struct _line{
 	int num,u,v,val;
 };
 int Route[800],MinRoute[800];
+double t1 = clock();
 struct miniGraph{
 public:
 	int mat[maxn][maxn],degI[maxn];
@@ -399,7 +400,7 @@ void Print_Answer(FILE *fout,lprec *lp){
 	while(pres != G.Terminate){
 #ifdef TEST_LOCAL973
 		printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
-		getchar();
+		//getchar();
 #endif
 		for(int i = 0; i < G.F[pres].size(); i++){
 			if(int(x[G.F[pres][i]]+0.5) == 1){
@@ -408,7 +409,9 @@ void Print_Answer(FILE *fout,lprec *lp){
 					fprintf(fout,"|");
 				}
 				fprintf(fout,"%d",G.F[pres][i]);
+#ifdef TEST_LOCAL973
 				printf("Choose Line %d\n",G.F[pres][i]);
+#endif
 				pres = G.E[pres][i];
 				break;
 			}
@@ -420,6 +423,76 @@ void Print_Answer(FILE *fout,lprec *lp){
 #ifdef TEST_LOCAL973
 	fprintf(fout,"\nLength = %d\n",longsam);
 #endif
+}
+bool hasring(lprec* lp,REAL* sol){
+	int Cc = get_Nrows(lp), Vc = get_Ncolumns(lp);	
+	int pres = G.Start;
+	int ConstraintC = get_Nrows(lp), VariableC = get_Ncolumns(lp);
+	int longsam = 0,cnt;
+	bool retval=false,visited[700];
+	REAL row1[700];
+	int colno1[700];
+	memset(visited,0,sizeof(visited));
+	visited[G.Start] = true;
+	get_primal_solution(lp,ans);
+	REAL *x = ans+ConstraintC+1;
+	while(pres != G.Terminate){
+#ifdef TEST_LOCAL973
+		printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
+		//getchar();
+#endif
+		for(int i = 0; i < G.F[pres].size(); i++){
+			if(int(x[G.F[pres][i]]+0.5) == 1){
+				longsam+=G.line[G.F[pres][i]].val;
+				printf("Choose Line %d\n",G.F[pres][i]);
+				pres = G.E[pres][i];
+				break;
+			}
+		}
+#ifdef TEST_LOCAL973
+		printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
+#endif
+		if(visited[pres]){
+			retval=true;
+			break;
+		}
+		visited[pres]=true;
+	}
+	for(int i = 1; i <= G.Nc; i++){
+		if(!visited[i] && (int)(ans[Cc+G.Ec+2*i]+0.5) == 1){
+#ifdef TEST_LOCAL973
+			printf("Node %d is in a circle.\n",i);
+#endif
+			cnt = 0;
+			retval = true;
+			visited[pres=i] = true;
+			while(1){
+				for(int j = 0; j < G.F[pres].size(); j++){
+#ifdef TEST_LOCAL973
+					printf("Line %d: X(j) == %.3lf\n",G.F[pres][j],ans[Cc+j+1]);
+#endif
+					if(int(x[G.F[pres][j]]+0.5) == 1){
+						row1[cnt] = 1;
+						colno1[cnt] = G.F[pres][j]+1;
+						cnt++;
+						pres = G.E[pres][j];
+						break;
+					}
+				}
+#ifdef TEST_LOCAL973
+				printf("PRES = %d\n",pres);
+				puts("");
+#endif
+				if(visited[pres])break;
+				visited[pres] = true;
+			}
+#ifdef TEST_LOCAL973
+			printf("CNT = %d\n",cnt);
+#endif
+			if(cnt>0)add_constraintex(lp,cnt,row1,colno1,LE,cnt-1);
+		}
+	}
+	return retval;
 }
 int LMT;
 int main(int argc,char* argv[]){
@@ -435,7 +508,7 @@ int main(int argc,char* argv[]){
     G.input_demand(fin1);
     fclose(fin0);
     fclose(fin1);
-    lp = make_lp(0,G.Ec+3*G.Nc);
+    lp = make_lp(0,G.Ec+2*G.Nc);
 	LMT = min(G.Nc,150);
 	if(lp == NULL){
 		fclose(fout0);
@@ -452,22 +525,6 @@ int main(int argc,char* argv[]){
 	for(int i = YStart+1; i <= YStart + G.Nc*2; i++){
 		set_binary(lp,i,TRUE);
 	}
-	for(int i = G.Ec+1; i <= G.Ec+G.Nc; i++){
-		row[i] = 0;
-		set_int(lp,i,TRUE);
-		if(i == G.Ec + G.Start){
-#ifdef TEST_LOCAL973
-			puts("**************");
-			printf("Start Variable %d.\n",i);
-			puts("**************");
-#endif
-			set_bounds(lp,i,1,1);
-		}
-		else if(G.isprimary[i-G.Ec] || i == G.Ec+G.Terminate)set_bounds(lp,i,1,LMT);
-		else{
-			set_bounds(lp,i,0,LMT);
-		}
-	}
 	set_obj_fn(lp,row);
 	set_timeout(lp,_TIME);
 	set_add_rowmode(lp,TRUE);
@@ -481,45 +538,30 @@ int main(int argc,char* argv[]){
 			else G._Add_Constraint(i,3);
 		}
 	}
-	int colno1[4];
-	REAL row1[4];
-	memset(row1,0,sizeof(row1));
-	memset(colno1,0,sizeof(colno1));
-	for(int i = 0; i < G.Ec; i++){
-		int U = G.M[G.line[i].u], V = G.M[G.line[i].v];
-		row1[0] = 1;
-		row1[1] = -1;
-		row1[2] = LMT+1;
-		colno1[0] = G.Ec+U;
-		colno1[1] = G.Ec+V;
-		colno1[2] = i+1;
-		add_constraintex(lp,3,row1,colno1,LE,LMT);
-	}
 	set_improve(lp,15);
 	set_print_sol(lp,2);
 	set_simplextype(lp,10);
 	set_add_rowmode(lp,FALSE);
 	set_debug(lp,TRUE);
 	//print_lp(lp);
-	//print_duals(lp);
-	//puts("*********************");
-	//puts("*********************");
 	int ret = solve(lp);
-	//get_primal_solution(lp,ans);
-	//printf("Solution = %d\n",(int)(ans[0]));
+	get_primal_solution(lp,ans);
+	bool ok1;
+	while(((hasring(lp,ans)) || ret != OPTIMAL ) && (clock()-t1)<=9.7*CLOCKS_PER_SEC){
+		ret = solve(lp);
+		get_primal_solution(lp,ans);
+		//getchar();
+	}
 #ifdef TEST_LOCAL973
 	print_solution(lp,1);
 #endif
-	if((ret == SUBOPTIMAL || ret == OPTIMAL || ret == PRESOLVED || ret == FEASFOUND) && 1 == 0){
+	if((ret == SUBOPTIMAL || ret == OPTIMAL || ret == PRESOLVED || ret == FEASFOUND)){
 		Print_Answer(fout0,lp);
-		fclose(fout0);
 	}
 	else{
-		fclose(fout0);
-		char commands[999];
-		sprintf(commands,"./future_netw2 %s %s %s",argv[1],argv[2],argv[3]);
-		system(commands);
+		fprintf(fout0,"NA");
 	}
+	fclose(fout0);
 	delete_lp(lp);
 	//fprintf(fout0,"\n%d",MinRoute[700]);
     return 0;
