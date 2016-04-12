@@ -1,0 +1,3 @@
+/home/snowyjune/下载/SDK-gcc-2.0/build/CMakeFiles/edit_cache.dir
+/home/snowyjune/下载/SDK-gcc-2.0/build/CMakeFiles/rebuild_cache.dir
+/home/snowyjune/下载/SDK-gcc-2.0/build/CMakeFiles/future_net.dir
