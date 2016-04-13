@@ -539,6 +539,19 @@ int main(int argc,char* argv[]){
 			else G._Add_Constraint(i,3);
 		}
 	}
+	REAL row1[10];
+	int colno1[10];
+	for(int i = 1; i <= G.Nc; i++){
+		for(int j = 1; j <= G.Nc; j++){
+			if(i==j)continue;
+			if(G.mat[i][j] != inf && G.mat[j][i] != inf){
+				int ij = G.getedge[i*1000+j]+1, ji = G.getedge[j*1000+i]+1;
+				row1[0]=row1[1] = 1;
+				colno1[0]=ij,colno1[1]=ji;
+				add_constraintex(lp,2,row1,colno1,LE,1);
+			}
+		}
+	}				
 	set_improve(lp,15);
 	set_print_sol(lp,2);
 	set_simplextype(lp,10);
