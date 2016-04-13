@@ -422,8 +422,8 @@ Excellent numeric accuracy ||*|| = 1.11022e-16
       The largest [LUSOL v2.2.1.0] fact(B) had 3122 NZ entries, 1.0x largest basis.
       The maximum B&B level was 1, 0.0x MIP order, 1 at the optimal solution.
       The constraint matrix inf-norm is 1, with a dynamic range of 1.
-      Time to load data was 0.013 seconds, presolve used 0.009 seconds,
-       ... 0.375 seconds in simplex solver, in total 0.397 seconds.
+      Time to load data was 0.013 seconds, presolve used 0.008 seconds,
+       ... 0.356 seconds in simplex solver, in total 0.377 seconds.
 Choose Line 2140
 Choose Line 2073
 Choose Line 760
@@ -970,8 +970,8 @@ Excellent numeric accuracy ||*|| = 1.11022e-16
       The largest [LUSOL v2.2.1.0] fact(B) had 3266 NZ entries, 1.0x largest basis.
       The maximum B&B level was 3, 0.0x MIP order, 3 at the optimal solution.
       The constraint matrix inf-norm is 1, with a dynamic range of 1.
-      Time to load data was 0.398 seconds, presolve used 0.000 seconds,
-       ... 0.164 seconds in simplex solver, in total 0.562 seconds.
+      Time to load data was 0.377 seconds, presolve used 0.001 seconds,
+       ... 0.162 seconds in simplex solver, in total 0.540 seconds.
 Choose Line 2138
 Choose Line 4382
 Choose Line 1131
@@ -1449,8 +1449,8 @@ Excellent numeric accuracy ||*|| = 1.11022e-16
       The largest [LUSOL v2.2.1.0] fact(B) had 3477 NZ entries, 1.1x largest basis.
       The maximum B&B level was 4, 0.0x MIP order, 4 at the optimal solution.
       The constraint matrix inf-norm is 1, with a dynamic range of 1.
-      Time to load data was 0.562 seconds, presolve used 0.001 seconds,
-       ... 0.154 seconds in simplex solver, in total 0.717 seconds.
+      Time to load data was 0.540 seconds, presolve used 0.000 seconds,
+       ... 0.152 seconds in simplex solver, in total 0.692 seconds.
 Choose Line 2138
 Choose Line 4382
 Choose Line 1131

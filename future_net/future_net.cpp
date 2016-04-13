@@ -500,6 +500,7 @@ int main(int argc,char* argv[]){
 	REAL row[9000],row3[4];
 	int colno3[4];
 	int _TIME = 18;
+	lprec* anslp = NULL;
     srand((unsigned int)time(0));
     FILE* fin0 = fopen(argv[1],"r");
     FILE* fin1 = fopen(argv[2],"r");
@@ -516,7 +517,7 @@ int main(int argc,char* argv[]){
 	}
 #ifdef TEST_LOCAL973
 	puts("Success in building");
-#endif
+ #endif
 	memset(row,0,sizeof(row));
 	for(int i = 1; i <= G.Ec; i++){
 		row[i] = G.line[i-1].val;
@@ -547,8 +548,12 @@ int main(int argc,char* argv[]){
 	int ret = solve(lp);
 	get_primal_solution(lp,ans);
 	bool ok1;
-	while(((hasring(lp,ans)) || ret != OPTIMAL ) && (clock()-t1)<=9.7*CLOCKS_PER_SEC){
+	while((ok1=(hasring(lp,ans))) || ret != OPTIMAL ){
+		if(clock()-t1>9.7*CLOCKS_PER_SEC)break;
 		ret = solve(lp);
+		if(!ok1){
+			anslp=copy_lp(lp);
+		}
 		get_primal_solution(lp,ans);
 		//getchar();
 	}
@@ -559,7 +564,11 @@ int main(int argc,char* argv[]){
 		Print_Answer(fout0,lp);
 	}
 	else{
-		fprintf(fout0,"NA");
+		if(anslp!=NULL){
+			solve(anslp);
+			Print_Answer(fout0,anslp);
+		}
+		else fprintf(fout0,"NA");
 	}
 	fclose(fout0);
 	delete_lp(lp);
