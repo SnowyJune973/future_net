@@ -1,7 +1,7 @@
 #include "./lib/ALib.hpp"
-//#define TEST_LOCAL973 233
+#define TEST_LOCAL973 233
 #define YStart G.Ec
-#define isnormal(x) !isprimary[x]&&x!=Start&&x!=Terminate
+#define isnormal(x) !G.isprimary[x]&&x!=G.Start&&x!=G.Terminate
 #define model mip
 using namespace std;
 struct _line{
@@ -39,8 +39,6 @@ struct Graph{
 	}
 	void input_topo(FILE* fin);
 	int input_demand(FILE* fin);
-	void _Add_Constraint(int p,char type);
-	void InitSolver();
 	void WriteMPSFile(FILE* fout);
 }G;
 bool cmp_pn_1(int x,int y){
@@ -66,6 +64,7 @@ void Graph::WriteMPSFile(FILE *fout){
 			fprintf(fout," E\tC(O.%03d)\n",i);
 		}
 	}
+	printf("writecol\n");
 	fprintf(fout,"COLUMNS\n");
 	for(int i = 0; i < Ec; i++){
 		int uu = M[line[i].u], vv = M[line[i].v],valval = line[i].val;
@@ -173,52 +172,12 @@ int Graph::input_demand(FILE* fin){
    *****************************
 */
 /* Defining variables on CBC solver. */
-OsiClpSolverInterface solver1;
-OsiSolverInterface *solver = &solver1;
-CoinModel build;
 /* End */
 /* ********************************
    *******************************
    ******************************
    *****************************
 */
-void Graph::InitSolver(){
-	for(int i = 0; i < Ec; i++){
-		build.setColumnBounds(i,0,1);
-		build.setObjective(i,line[i].val);
-		build.setInteger(i);
-	}
-}
-void Graph::_Add_Constraint(int p,char type){
-	int cc = E[p].size(), rcc = RE[p].size();
-	double row[50];
-	int colno[50];
-	if(type <= 2){
-		int ic = (type==0?0:1), oc = (type==1?0:1);
-		for(int i = 0; i < rcc; i++){
-			row[i] = 1;
-			colno[i] = RF[p][i];
-		}
-		build.addRow(rcc,colno,row,ic,ic);
-		for(int i = 0; i < cc; i++){
-			row[i] = 1;
-			colno[i] = F[p][i];
-		}
-		build.addRow(cc,colno,row,oc,oc);
-	}
-	else{
-		for(int i = 0; i < rcc; i++){
-			row[i] = 1;
-			colno[i] = RF[p][i];
-		}
-		build.addRow(rcc,colno,row,0,1);
-		for(int i = 0; i < cc; i++){
-			row[rcc+i] = -1;
-			colno[rcc+i] = F[p][i];
-		}
-		build.addRow(cc+rcc,colno,row,0,0);
-	}
-}
 double ans[20000];
 void Print_Answer(FILE *fout,CbcModel mip){
 	int pres = G.Start;
@@ -260,218 +219,166 @@ void printlist(CbcModel mip){
 	}
 	puts("");
 } 
-bool hasring(CbcModel mip,double *sol){
-	int Cc = mip.getNumRows(), Vc = mip.getNumCols();	
-	int pres = G.Start;
-	int cnt;
-	bool retval=false,visited[700];
-	double row1[700];
-	int colno1[700];
-	memset(visited,0,sizeof(visited));
-	visited[G.Start] = true;
-	double *x = sol;
-	//printlist(mip);
-	while(pres != G.Terminate){
-#ifdef TEST_LOCAL973
-		printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
-#endif
-		for(int i = 0; i < G.F[pres].size(); i++){
-			if(int(x[G.F[pres][i]]+0.5) == 1){
-#ifdef TEST_LOCAL973
-				printf("Choose Line %d\n",G.F[pres][i]);
-#endif
-				pres = G.E[pres][i];
-				break;
-			}
-		}
-#ifdef TEST_LOCAL973
-		printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
-#endif
-		if(visited[pres]){
-			retval=true;
-			break;
-		}
-		visited[pres]=true;
-	}
-	for(int i = 1; i <= G.Nc; i++){
-		if(!visited[i] && (int)(ans[Cc+G.Ec+2*i]+0.5) == 1){
-#ifdef TEST_LOCAL973
-			printf("Node %d is in a circle.\n",i);
-#endif
-			cnt = 0;
-			retval = true;
-			visited[pres=i] = true;
-			while(1){
-				for(int j = 0; j < G.F[pres].size(); j++){
-#ifdef TEST_LOCAL973
-					printf("Line %d: X(j) == %.3lf\n",G.F[pres][j],x[j]);
-#endif
-					if(int(x[G.F[pres][j]]+0.5) == 1){
-						row1[cnt] = 1;
-						colno1[cnt] = G.F[pres][j];
-						cnt++;
-						pres = G.E[pres][j];
-						break;
-					}
-				}
-#ifdef TEST_LOCAL973
-				printf("PRES = %d\n",pres);
-				puts("");
-#endif
-				if(visited[pres])break;
-				visited[pres] = true;
-			}
-#ifdef TEST_LOCAL973
-			printf("CNT = %d\n",cnt);
-#endif
-			if(cnt>0)build.addRow(cnt,colno1,row1,0,cnt-1);
-			mip.solver()->loadFromCoinModel(build);
-		}
-	}
-	printf("This solution is %s\n",retval?"OK":"NOT OK");
-	return retval;
-}
 int LMT;
 int main(int argc,char* argv[]){
 	//freopen("logs.txt","w",stdout);
-	double row[9000],row3[4];
-	int colno3[4];
+	double row[90];
+	int colno[30];
 	int _TIME = 18;
+	OsiClpSolverInterface solver1;
+	OsiSolverInterface *solver = &solver1;
+	CoinModel build;
     srand((unsigned int)time(0));
     FILE* fin0 = fopen(argv[1],"r");
     FILE* fin1 = fopen(argv[2],"r");
     FILE* fout0 = fopen(argv[3],"w");
-	FILE* mps = fopen("dat2.mps","w");
+	FILE* mps = fopen("dat3.mps","w");
     G.input_topo(fin0);
     G.input_demand(fin1);
     fclose(fin0);
     fclose(fin1);
-	G.WriteMPSFile(mps);
-	fclose(mps);
-	G.InitSolver();
+	for(int i = 0; i < G.Ec; i++){
+		build.setColumnBounds(i,0,1);
+		build.setObjective(i,G.line[i].val);
+		build.setInteger(i);
+	}	
 	LMT = min(G.Nc,150);
 #ifdef TEST_LOCAL973
 	puts("Success in building");
  #endif
-	/*for(int i = 1; i <= G.Nc; i++){
-		if(i == G.Start || i == G.Terminate){
-			if(i == G.Start)G._Add_Constraint(i,0);
-			else G._Add_Constraint(i,1);
+	puts("WOC");
+	for(int i = 1; i <= G.Nc; i++){
+		printf("I=%d\n",i);
+		if(isnormal(i)){
+			puts("isnormal");
+			int rcc = G.RF[i].size(), cc = G.F[i].size();
+			for(int j = 0; j < rcc; j++){
+				row[j] = 1;
+				colno[j] = G.RF[i][j];
+			}
+			build.addRow(rcc,colno,row,0,1);
+			for(int j = 0; j < cc; j++){
+				row[rcc+j] = -1;
+				colno[rcc+j] = G.F[i][j];
+			}
+			build.addRow(rcc+cc,colno,row,0,0);
 		}
 		else{
-			if(G.isprimary[i])G._Add_Constraint(i,2);
-			else G._Add_Constraint(i,3);
+			puts("isnotnormal");
+			int ci = 1,co = 1;
+			if(i == G.Start)ci --;
+			if(i == G.Terminate)co --;
+			int rcc = G.RF[i].size() ,cc = G.F[i].size();
+			printf("rcc = %d , cc = %d\n",rcc,cc);
+			for(int j = 0; j < rcc; j++){
+				printf("J = %d\n",j);
+				row[j] = 1;
+				colno[j] = G.RF[i][j];
+			}
+			build.addRow(rcc,colno,row,ci,ci);
+			for(int j = 0; j < cc; j++){
+				printf("J = %d\n",j);
+				row[j] = 1;
+				colno[j] = G.F[i][j];
+			}
+			build.addRow(cc,colno,row,co,co);
 		}
 	}
-	double row1[10];
-	int colno1[10];
 	for(int i = 1; i <= G.Nc; i++){
 		for(int j = 1; j <= G.Nc; j++){
 			if(i==j)continue;
 			if(G.mat[i][j] != inf && G.mat[j][i] != inf){
-				int ij = G.getedge[i*1000+j]+1, ji = G.getedge[j*1000+i]+1;
-				row1[0]=row1[1] = 1;
-				colno1[0]=ij,colno1[1]=ji;
-				build.addRow(2,colno1,row1,0,1);
+				int ij = G.getedge[i*1000+j], ji = G.getedge[j*1000+i];
+				row[0]=row[1] = 1;
+				colno[0]=ij,colno[1]=ji;
+				build.addRow(2,colno,row,0,1);
 			}
 		}
 	}				
 	solver->loadFromCoinModel(build);
-	*/
-	solver1.readMps("dat2.mps","");
-	OsiSolverInterface *solver2(&solver1);
-	CbcModel mip(*solver2);
+	CbcModel mip(*solver);
 	//mip.solver()->setHintParam(OsiDoReducePrint,true,OsiHintTry);
-	mip.setMaximumSeconds(9.7-(clock()-t1)/CLOCKS_PER_SEC);
-//CbcModel model(*solver);
-  model.solver()->setHintParam(OsiDoReducePrint,true,OsiHintTry);
-
-
-  // Set up some cut generators and defaults
-  // Probing first as gets tight bounds on continuous
-
-  CglProbing generator1;
-  generator1.setUsingObjective(true);
-  generator1.setMaxPass(3);
-  generator1.setMaxProbe(100);
-  generator1.setMaxLook(50);
-  generator1.setRowCuts(3);
-  //  generator1.snapshot(*model.solver());
-  //generator1.createCliques(*model.solver(),2,1000,true);
-  //generator1.setMode(0);
-
-  CglGomory generator2;
-  // try larger limit
-  generator2.setLimit(300);
-
-  CglKnapsackCover generator3;
-
-  CglOddHole generator4;
-  generator4.setMinimumViolation(0.005);
-  generator4.setMinimumViolationPer(0.00002);
-  // try larger limit
-  generator4.setMaximumEntries(200);
-
-  CglClique generator5;
-  generator5.setStarCliqueReport(false);
-  generator5.setRowCliqueReport(false);
-
-  CglMixedIntegerRounding mixedGen;
-  CglFlowCover flowGen;
-  
-  // Add in generators
-  model.addCutGenerator(&generator1,-1,"Probing");
-  model.addCutGenerator(&generator2,-1,"Gomory");
-  model.addCutGenerator(&generator3,-1,"Knapsack");
-  model.addCutGenerator(&generator4,-1,"OddHole");
-  model.addCutGenerator(&mixedGen,-1,"MixedIntegerRounding");
-
-  OsiClpSolverInterface * osiclp = dynamic_cast< OsiClpSolverInterface*> (model.solver());
-  // go faster stripes
-  if (osiclp->getNumRows()<300&&osiclp->getNumCols()<500) {
-    osiclp->setupForRepeatedUse(2,0);
-    printf("trying slightly less reliable but faster version (? Gomory cuts okay?)\n");
-    printf("may not be safe if doing cuts in tree which need accuracy (level 2 anyway)\n");
-  }
-
-  // Allow rounding heuristic
-
-  CbcRounding heuristic1(model);
-  model.addHeuristic(&heuristic1);
-
-  // And local search when new solution found
-
-  CbcHeuristicLocal heuristic2(model);
-  model.addHeuristic(&heuristic2);
-
-
-  // Do initial solve to continuous
-  model.initialSolve();
-
-  // Could tune more
-  model.setMinimumDrop(CoinMin(1.0,
-			     fabs(model.getMinimizationObjValue())*1.0e-3+1.0e-4));
-
-  if (model.getNumCols()<500)
-    model.setMaximumCutPassesAtRoot(-100); // always do 100 if possible
-  else if (model.getNumCols()<5000)
-    model.setMaximumCutPassesAtRoot(100); // use minimum drop
-  else
-    model.setMaximumCutPassesAtRoot(20);
-  //model.setMaximumCutPasses(5);
-
-  // Switch off strong branching if wanted
-  // model.setNumberStrong(0);
-  // Do more strong branching if small
-  if (model.getNumCols()<5000)
-    model.setNumberStrong(10);
 	mip.initialSolve();
 	mip.branchAndBound();
 	memcpy(ans,mip.getColSolution(),sizeof(double)*mip.getNumCols());
 	printf("Result is %s\n",mip.isProvenOptimal()?"OPTIMAL":"NOT OPTIMAL");
 	bool ok1;
-	while((ok1=(hasring(mip,ans)) )){
+	while(1){
 		if(clock()-t1>9.7*CLOCKS_PER_SEC)break;
+		int Cc = mip.getNumRows(), Vc = mip.getNumCols();	
+		int pres = G.Start;
+		int cnt;
+		bool retval=false,visited[700];
+		memset(visited,0,sizeof(visited));
+		visited[G.Start] = true;
+		double *x = ans;
+		//printlist(mip);
+		while(pres != G.Terminate){
+#ifdef TEST_LOCAL973
+			printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
+#endif
+			for(int i = 0; i < G.F[pres].size(); i++){
+				if(int(x[G.F[pres][i]]+0.5) == 1){
+#ifdef TEST_LOCAL973
+					printf("Choose Line %d\n",G.F[pres][i]);
+#endif
+					pres = G.E[pres][i];
+					break;
+				}
+			}
+#ifdef TEST_LOCAL973
+			printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
+#endif
+			if(visited[pres]){
+				retval=true;
+				break;
+			}
+			visited[pres]=true;
+		}
+		for(int i = 1; i <= G.Nc; i++){
+			if(!visited[i] && (int)(ans[Cc+G.Ec+2*i]+0.5) == 1){
+#ifdef TEST_LOCAL973
+				printf("Node %d is in a circle.\n",i);
+#endif
+				cnt = 0;
+				retval = true;
+				visited[pres=i] = true;
+				while(1){
+					for(int j = 0; j < G.F[pres].size(); j++){
+#ifdef TEST_LOCAL973
+						printf("Line %d: X(j) == %.3lf\n",G.F[pres][j],x[j]);
+#endif
+						if(int(x[G.F[pres][j]]+0.5) == 1){
+							row[cnt] = 1;
+							colno[cnt] = G.F[pres][j];
+							cnt++;
+							pres = G.E[pres][j];
+							break;
+						}
+					}
+#ifdef TEST_LOCAL973
+					printf("PRES = %d\n",pres);
+					puts("");
+					//getchar();
+					//getchar();
+#endif
+					if(visited[pres])break;
+					visited[pres] = true;
+				}
+#ifdef TEST_LOCAL973
+				getchar();
+				printf("CNT = %d\n",cnt);
+#endif
+				if(cnt>0){
+					build.addRow(cnt,colno,row,0,cnt-1);
+					mip.solver()->loadFromCoinModel(build);
+				}
+			}
+			printf("I = %d, while cnt = %d\n",i,cnt);
+			getchar();
+		}
+		printf("This solution is %s\n",retval?"OK":"NOT OK");
+		if(retval)break;
 		mip.setMaximumSeconds(9.7-(clock()-t1)/CLOCKS_PER_SEC);
 		mip.branchAndBound();
 		memcpy(ans,mip.getColSolution(),sizeof(double)*mip.getNumCols());
