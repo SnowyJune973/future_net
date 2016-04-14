@@ -234,7 +234,7 @@ int main (int argc, const char *argv[])
   // Could tune more
   model.setMinimumDrop(CoinMin(1.0,
 			     fabs(model.getMinimizationObjValue())*1.0e-3+1.0e-4));
-
+lue %g"},
   if (model.getNumCols()<500)
     model.setMaximumCutPassesAtRoot(-100); // always do 100 if possible
   else if (model.getNumCols()<5000)

@@ -1,4 +1,4 @@
-/* $Id: CbcSolver.cpp 2209 2015-07-28 13:26:48Z forrest $ */
+/* $Id: CbcSolver.cpp 2249 2016-02-01 07:32:06Z forrest $ */
 // Copyright (C) 2007, International Business Machines
 // Corporation and others.  All Rights Reserved.
 // This code is licensed under the terms of the Eclipse Public License (EPL).
@@ -4177,12 +4177,13 @@ int CbcMain1 (int argc, const char *argv[],
 					    model_.getCutoff()>1.0e30) {
 					  osiclp->getModelPtr()->setMoreSpecialOptions(saveOptions|262144);
 					}
-                                        solver2 = process.preProcessNonDefault(*saveSolver, translate[preProcess], numberPasses,
+					solver2 = process.preProcessNonDefault(*saveSolver, translate[preProcess], numberPasses,
                                                                                tunePreProcess);
-                                        /*solver2->writeMps("after");
-                                          saveSolver->writeMps("before");*/
-                                        osiclp->getModelPtr()->setPerturbation(savePerturbation);
-					osiclp->getModelPtr()->setMoreSpecialOptions(saveOptions);
+					if (solver2) {
+					  model_.setOriginalColumns( process.originalColumns(), solver2->getNumCols() );
+					  osiclp->getModelPtr()->setPerturbation(savePerturbation);
+					  osiclp->getModelPtr()->setMoreSpecialOptions(saveOptions);
+					}
                                     }
 #elif CBC_OTHER_SOLVER==1
 				    cbcPreProcessPointer = & process;
@@ -5433,43 +5434,53 @@ int CbcMain1 (int argc, const char *argv[],
                                 }
 #endif
                                 const int * originalColumns = preProcess ? process.originalColumns() : NULL;
-                                //if (model.getMIPStart().size())
-				// mipStart = model.getMIPStart();
-				if (mipStart.size() && !mipStartBefore.size() && babModel_->getNumCols())
+
+                                if (model.getMIPStart().size())
+				                    mipStart = model.getMIPStart();
+
+                                if (mipStart.size() && !mipStartBefore.size() && babModel_->getNumCols())
                                 {
-                                   std::vector< std::string > colNames;
-                                   if (preProcess)
-                                   {
-				     std::vector< std::pair< std::string, double > > mipStart2;
-				     int numberOriginalColumns = model_.solver()->getNumCols();
-				     for ( int i=0 ; (i<babModel_->solver()->getNumCols()) ; ++i ) {
-				       int iColumn = babModel_->originalColumns()[i];
-				       if (iColumn>=0 && iColumn < numberOriginalColumns) {
-                                         colNames.push_back( model_.solver()->getColName( iColumn ) );
-					 babModel_->solver()->setColName(i,model_.solver()->getColName(iColumn));
-					 mipStart2.push_back(mipStart[iColumn]);
-				       } else {
-					 // created variable
-					 char newName[15];
-					 sprintf(newName,"C%7.7d",i);
-                                         colNames.push_back( newName );
-				       }
-				     }
-				     mipStart = mipStart2;
-				   } else {
-                                      for ( int i=0 ; (i<babModel_->solver()->getNumCols()) ; ++i )
-                                         colNames.push_back( model_.solver()->getColName(i) );
-				   }
-				   //printf("--- %s %d\n", babModel_->solver()->getColName(0).c_str(), babModel_->solver()->getColNames().size() );
-				   //printf("-- SIZES of models %d %d %d\n", model_.getNumCols(),  babModel_->solver()->getNumCols(), babModel_->solver()->getColNames().size() );
-				   std::vector< double > x( babModel_->getNumCols(), 0.0 );
-				   double obj;
-				   int status = computeCompleteSolution( babModel_, colNames, mipStart, &x[0], obj );
-				   if (!status) {
-				     babModel_->setBestSolution( &x[0], static_cast<int>(x.size()), obj, false );
-				     babModel_->setSolutionCount(1);
-				   }
-				}
+                                    std::vector< std::string > colNames;
+                                    if (preProcess)
+                                    {
+                                        /* translating mipstart solution */
+                                        std::map< std::string, double > mipStartV;
+                                        for ( size_t i=0 ; (i<mipStart.size()) ; ++i )
+                                            mipStartV[mipStart[i].first] = mipStart[i].second;
+
+                                        std::vector< std::pair< std::string, double > > mipStart2;
+                                        for ( int i=0 ; (i<babModel_->solver()->getNumCols()) ; ++i ) {
+                                            int iColumn = babModel_->originalColumns()[i];
+                                            if (iColumn>=0) {
+                                                std::string cname = model_.solver()->getColName( iColumn );
+                                                colNames.push_back( cname );
+                                                babModel_->solver()->setColName( i, cname );
+                                                std::map< std::string, double >::const_iterator msIt = mipStartV.find( cname );
+                                                if ( msIt != mipStartV.end() )
+                                                    mipStart2.push_back( std::pair< std::string, double>( cname, msIt->second ) );
+                                            } else {
+                                                // created variable
+                                                char newName[15];
+                                                sprintf(newName,"C%7.7d",i);
+                                                colNames.push_back( newName );
+                                            }
+                                        }
+                                        mipStart = mipStart2;
+                                    } else {
+                                        for ( int i=0 ; (i<babModel_->solver()->getNumCols()) ; ++i )
+                                            colNames.push_back( model_.solver()->getColName(i) );
+                                    }
+                                    //printf("--- %s %d\n", babModel_->solver()->getColName(0).c_str(), babModel_->solver()->getColNames().size() );
+                                    //printf("-- SIZES of models %d %d %d\n", model_.getNumCols(),  babModel_->solver()->getNumCols(), babModel_->solver()->getColNames().size() );
+                                    std::vector< double > x( babModel_->getNumCols(), 0.0 );
+                                    double obj;
+                                    int status = computeCompleteSolution( babModel_, colNames, mipStart, &x[0], obj );
+                                    if (!status) {
+                                        babModel_->setBestSolution( &x[0], static_cast<int>(x.size()), obj, false );
+                                        babModel_->setSolutionCount(1);
+                                    }
+                               }
+
 
                                 if (solutionIn && useSolution >= 0) {
                                     if (!prioritiesIn) {
@@ -5555,7 +5566,8 @@ int CbcMain1 (int argc, const char *argv[],
                                         // extend arrays in case SOS
                                         assert (originalColumns);
 					int n = CoinMin(truncateColumns,numberColumns);
-                                        n = originalColumns[n-1] + 1;
+					// allow for empty problem
+                                        n = (n) ? originalColumns[n-1] + 1 : 0;
                                         n = CoinMax(n, CoinMax(numberColumns, numberOriginalColumns));
                                         int * newColumn = new int[n];
                                         int i;

@@ -1,4 +1,4 @@
-/* $Id: CbcModel.cpp 2199 2015-06-04 17:10:17Z forrest $ */
+/* $Id: CbcModel.cpp 2267 2016-02-21 11:26:51Z forrest $ */
 // Copyright (C) 2002, International Business Machines
 // Corporation and others.  All Rights Reserved.
 // This code is licensed under the terms of the Eclipse Public License (EPL).
@@ -2120,6 +2120,7 @@ void CbcModel::branchAndBound(int doStatistics)
             continuousSolver_->initialSolve() ;
 	  }
 	  delete solver_ ;
+	  solverCharacteristics_=NULL;
 	  solver_ = continuousSolver_ ;
 	  setPointers(solver_);
 	  continuousSolver_ = NULL ;
@@ -6158,10 +6159,16 @@ CbcModel::CbcModel(const CbcModel & rhs, bool cloneHandler)
         savedSolutions_ = NULL;
     }
     // Space for current solution
-    currentSolution_ = new double[numberColumns];
-    continuousSolution_ = CoinCopyOfArray(solver_->getColSolution(),numberColumns);
-    usedInSolution_ = new int[numberColumns];
-    CoinZeroN(usedInSolution_, numberColumns);
+    if (numberColumns) {
+      currentSolution_ = new double[numberColumns];
+      continuousSolution_ = CoinCopyOfArray(solver_->getColSolution(),numberColumns);
+      usedInSolution_ = new int[numberColumns];
+      CoinZeroN(usedInSolution_, numberColumns);
+    } else {
+      currentSolution_ = NULL;
+      continuousSolution_ = NULL;
+      usedInSolution_ = NULL;
+    }
     testSolution_ = currentSolution_;
     numberRowsAtContinuous_ = rhs.numberRowsAtContinuous_;
     cutoffRowNumber_ = rhs.cutoffRowNumber_;
@@ -8629,6 +8636,7 @@ CbcModel::solveWithCuts (OsiCuts &cuts, int numberTries, CbcNode *node)
             if ( maximumSecondsReached() ) {
                 numberTries = -1000; // exit
 		feasible = false;
+		delete [] addCuts ;
                 break;
             }
 #     ifdef CBC_DEBUG

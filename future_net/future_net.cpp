@@ -1,5 +1,5 @@
 #include "./lib/ALib.hpp"
-#define TEST_LOCAL973 233
+//#define TEST_LOCAL973 233
 #define YStart G.Ec
 #define isnormal(x) !G.isprimary[x]&&x!=G.Start&&x!=G.Terminate
 #define model mip
@@ -183,8 +183,10 @@ void Print_Answer(FILE *fout,CbcModel mip){
 	int pres = G.Start;
 	int ConstraintC = mip.getNumRows(), VariableC = mip.getNumCols();
 	int longsam = (int)(mip.getObjValue());
-	double x[700];
-	memcpy(x,mip.getColSolution(),sizeof(double)*mip.getNumCols());
+	printf("Longsam = %d\n",longsam);
+	//memcpy(x,mip.getColSolution(),sizeof(double)*mip.getNumCols());
+	const double *x = mip.getColSolution();
+	puts("CPY FINISH");
 	while(pres != G.Terminate){
 #ifdef TEST_LOCAL973
 		printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
@@ -219,15 +221,15 @@ void printlist(CbcModel mip){
 	}
 	puts("");
 } 
-int LMT;
 int main(int argc,char* argv[]){
-	//freopen("logs.txt","w",stdout);
+	freopen("logs.txt","w",stdout);
 	double row[90];
 	int colno[30];
 	int _TIME = 18;
-	OsiClpSolverInterface solver1;
-	OsiSolverInterface *solver = &solver1;
-	CoinModel build;
+	
+	static OsiClpSolverInterface solver1;
+	static OsiSolverInterface *solver = &solver1;
+	static CoinModel build;
     srand((unsigned int)time(0));
     FILE* fin0 = fopen(argv[1],"r");
     FILE* fin1 = fopen(argv[2],"r");
@@ -237,52 +239,90 @@ int main(int argc,char* argv[]){
     G.input_demand(fin1);
     fclose(fin0);
     fclose(fin1);
+	int LMT = G.Nc;
 	for(int i = 0; i < G.Ec; i++){
 		build.setColumnBounds(i,0,1);
 		build.setObjective(i,G.line[i].val);
 		build.setInteger(i);
-	}	
-	LMT = min(G.Nc,150);
+	}
+	for(int i = G.Ec; i < G.Ec+G.Nc; i++){
+		build.setInteger(i);
+		build.setObjective(i,0.0);
+		int rela_v = i-G.Ec+1;
+		if(rela_v == G.Start){
+			build.setColumnBounds(i,1,1);
+		}
+		else{
+			if(rela_v == G.Terminate || G.isprimary[rela_v]){
+				build.setColumnBounds(i,1,LMT);
+			}
+			else{
+				build.setColumnBounds(i,0,LMT);
+			}
+		}
+	}
+	for(int i = G.Ec+G.Nc; i < G.Ec+G.Nc*3; i++){
+		build.setInteger(i);
+		build.setObjective(i,0.0);
+	}
+	for(int i = 1; i <= G.Nc; i++){
+		int delta=G.Nc+G.Ec-2;
+		if(isnormal(i)){
+			build.setColumnBounds(2*i+delta,0,1);
+			build.setColumnBounds(2*i+delta+1,0,1);
+			row[0]=1,row[1]=-1;
+			colno[0]=2*i+delta,colno[1]=2*i+delta+1;
+			build.addRow(2,colno,row,0,0);
+		}
+		else{
+			int ci = 1,co = 1;
+			if(i == G.Start)ci--;
+			if(i == G.Terminate)co--;
+			build.setColumnBounds(2*i+delta,ci,ci);
+			build.setColumnBounds(2*i+delta+1,co,co);
+		}
+	}			
 #ifdef TEST_LOCAL973
 	puts("Success in building");
  #endif
 	puts("WOC");
 	for(int i = 1; i <= G.Nc; i++){
 		printf("I=%d\n",i);
-		if(isnormal(i)){
-			puts("isnormal");
-			int rcc = G.RF[i].size(), cc = G.F[i].size();
-			for(int j = 0; j < rcc; j++){
-				row[j] = 1;
-				colno[j] = G.RF[i][j];
-			}
-			build.addRow(rcc,colno,row,0,1);
-			for(int j = 0; j < cc; j++){
-				row[rcc+j] = -1;
-				colno[rcc+j] = G.F[i][j];
-			}
-			build.addRow(rcc+cc,colno,row,0,0);
+		int rcc = G.RF[i].size(), cc = G.F[i].size();
+		int delta = G.Nc+G.Ec-2;
+		for(int j = 0; j < rcc; j++){
+			row[j] = 1;
+			colno[j] = G.RF[i][j];
 		}
-		else{
-			puts("isnotnormal");
-			int ci = 1,co = 1;
-			if(i == G.Start)ci --;
-			if(i == G.Terminate)co --;
-			int rcc = G.RF[i].size() ,cc = G.F[i].size();
-			printf("rcc = %d , cc = %d\n",rcc,cc);
-			for(int j = 0; j < rcc; j++){
-				printf("J = %d\n",j);
-				row[j] = 1;
-				colno[j] = G.RF[i][j];
-			}
-			build.addRow(rcc,colno,row,ci,ci);
-			for(int j = 0; j < cc; j++){
-				printf("J = %d\n",j);
-				row[j] = 1;
-				colno[j] = G.F[i][j];
-			}
-			build.addRow(cc,colno,row,co,co);
+		row[rcc] = -1;
+		colno[rcc] = 2*i+delta;
+		build.addRow(rcc+1,colno,row,0,0);
+		for(int j = 0; j < cc; j++){
+			row[j] = 1;
+			colno[j] = G.F[i][j];
 		}
+		row[cc] = -1;
+		colno[cc] = 2*i+delta+1;
+		build.addRow(cc+1,colno,row,0,0);
+	}
+	for(int i = 0; i < G.Ec; i++){
+		int uu = G.M[G.line[i].u], vv = G.M[G.line[i].v];
+		row[0] = 1;
+		row[1] = -1;
+		row[2] = LMT+1;
+		colno[0] = G.Ec-1+uu;
+		colno[1] = G.Ec-1+vv;
+		colno[2] = i;
+		build.addRow(3,colno,row,-inf,LMT);
+	}
+	for(int i = 1; i <= G.Nc; i++){
+		if(i == G.Start || i == G.Terminate)continue;
+		int delta = G.Nc + G.Ec - 2;
+		row[0] = 1;
+		row[1] = -(LMT+1);
+		colno[0] = G.Ec-1+i;
+		colno[1] = 2*i+delta;
+		build.addRow(2,colno,row,-inf,0);
 	}
 	for(int i = 1; i <= G.Nc; i++){
 		for(int j = 1; j <= G.Nc; j++){
@@ -298,92 +338,17 @@ int main(int argc,char* argv[]){
 	solver->loadFromCoinModel(build);
 	CbcModel mip(*solver);
 	//mip.solver()->setHintParam(OsiDoReducePrint,true,OsiHintTry);
+	mip.setMaximumSeconds(9.7);
 	mip.initialSolve();
+//	puts("Initial Solve FInish.");
 	mip.branchAndBound();
+//	puts("BAB finish.");
 	memcpy(ans,mip.getColSolution(),sizeof(double)*mip.getNumCols());
-	printf("Result is %s\n",mip.isProvenOptimal()?"OPTIMAL":"NOT OPTIMAL");
+//	printf("Result is %s\n",mip.isProvenOptimal()?"OPTIMAL":"NOT OPTIMAL");
 	bool ok1;
-	while(1){
-		if(clock()-t1>9.7*CLOCKS_PER_SEC)break;
-		int Cc = mip.getNumRows(), Vc = mip.getNumCols();	
-		int pres = G.Start;
-		int cnt;
-		bool retval=false,visited[700];
-		memset(visited,0,sizeof(visited));
-		visited[G.Start] = true;
-		double *x = ans;
-		//printlist(mip);
-		while(pres != G.Terminate){
-#ifdef TEST_LOCAL973
-			printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
-#endif
-			for(int i = 0; i < G.F[pres].size(); i++){
-				if(int(x[G.F[pres][i]]+0.5) == 1){
-#ifdef TEST_LOCAL973
-					printf("Choose Line %d\n",G.F[pres][i]);
-#endif
-					pres = G.E[pres][i];
-					break;
-				}
-			}
-#ifdef TEST_LOCAL973
-			printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
-#endif
-			if(visited[pres]){
-				retval=true;
-				break;
-			}
-			visited[pres]=true;
-		}
-		for(int i = 1; i <= G.Nc; i++){
-			if(!visited[i] && (int)(ans[Cc+G.Ec+2*i]+0.5) == 1){
-#ifdef TEST_LOCAL973
-				printf("Node %d is in a circle.\n",i);
-#endif
-				cnt = 0;
-				retval = true;
-				visited[pres=i] = true;
-				while(1){
-					for(int j = 0; j < G.F[pres].size(); j++){
-#ifdef TEST_LOCAL973
-						printf("Line %d: X(j) == %.3lf\n",G.F[pres][j],x[j]);
-#endif
-						if(int(x[G.F[pres][j]]+0.5) == 1){
-							row[cnt] = 1;
-							colno[cnt] = G.F[pres][j];
-							cnt++;
-							pres = G.E[pres][j];
-							break;
-						}
-					}
-#ifdef TEST_LOCAL973
-					printf("PRES = %d\n",pres);
-					puts("");
-					//getchar();
-					//getchar();
-#endif
-					if(visited[pres])break;
-					visited[pres] = true;
-				}
-#ifdef TEST_LOCAL973
-				getchar();
-				printf("CNT = %d\n",cnt);
-#endif
-				if(cnt>0){
-					build.addRow(cnt,colno,row,0,cnt-1);
-					mip.solver()->loadFromCoinModel(build);
-				}
-			}
-			printf("I = %d, while cnt = %d\n",i,cnt);
-			getchar();
-		}
-		printf("This solution is %s\n",retval?"OK":"NOT OK");
-		if(retval)break;
-		mip.setMaximumSeconds(9.7-(clock()-t1)/CLOCKS_PER_SEC);
-		mip.branchAndBound();
-		memcpy(ans,mip.getColSolution(),sizeof(double)*mip.getNumCols());
-	}
+	memcpy(ans,mip.getColSolution(),sizeof(double)*mip.getNumCols());
 	if(mip.getSolutionCount()>0){
+//		puts("Print Answer!");
 		Print_Answer(fout0,mip);
 	}
 	else{

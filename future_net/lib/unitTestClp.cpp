@@ -1,4 +1,4 @@
-/* $Id: unitTestClp.cpp 2105 2015-01-05 13:11:11Z forrest $ */
+/* $Id: unitTestClp.cpp 2271 2016-02-22 00:11:27Z tkr $ */
 // Copyright (C) 2002, International Business Machines
 // Corporation and others.  All Rights Reserved.
 // This code is licensed under the terms of the Eclipse Public License (EPL).
@@ -168,7 +168,7 @@ int CbcClpUnitTest (const CbcModel &saveModel, const std::string &dirMiplib,
     std::vector<double> objValueC ;
     std::vector<double> objValue ;
     std::vector<int> testSet ;
-    std::vector<bool> rowCutDebugger ;
+    std::vector<int> rowCutDebugger ;
 /*
   A macro to make the vector creation marginally readable. Parameters are
   name, rows, columns, integer objective, continuous objective, set ID,

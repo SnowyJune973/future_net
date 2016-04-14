@@ -1,4 +1,4 @@
-/* $Id: CbcNode.cpp 2187 2015-05-05 13:04:34Z stefan $ */
+/* $Id: CbcNode.cpp 2272 2016-02-22 00:12:18Z tkr $ */
 // Copyright (C) 2002, International Business Machines
 // Corporation and others.  All Rights Reserved.
 // This code is licensed under the terms of the Eclipse Public License (EPL).
@@ -1973,6 +1973,7 @@ int CbcNode::chooseDynamicBranch (CbcModel *model, CbcNode *lastNode,
 #endif
     // so we can save lots of stuff
     CbcStrongInfo choice;
+    memset (&choice, 0, sizeof(CbcStrongInfo));
     CbcDynamicPseudoCostBranchingObject * choiceObject = NULL;
     if (model->allDynamic()) {
         CbcSimpleIntegerDynamicPseudoCost * object = NULL;
