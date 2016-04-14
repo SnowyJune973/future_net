@@ -1,77 +1,13 @@
-#include <cstdio>
-#include <cstring>
-#include <cstdlib>
-#include <algorithm>
-#include <vector>
-#include <fstream>
-#include <set>
-#include <map>
-#include <ctime>
-#include <queue>
-#include <stack>
-#include "./lib/lp_lib.h"
-#include "./lib/defines.h"
-//#include "defines.h"
-#define DFS_MAXCNT 97000000
-//Real should be 3e6
+#include "./lib/ALib.hpp"
 //#define TEST_LOCAL973 233
 #define YStart G.Ec
+#define isnormal(x) !isprimary[x]&&x!=Start&&x!=Terminate
+#define model mip
 using namespace std;
 struct _line{
 	int num,u,v,val;
 };
-int Route[800],MinRoute[800];
 double t1 = clock();
-struct miniGraph{
-public:
-	int mat[maxn][maxn],degI[maxn];
-	int Priority[maxn];
-	miniGraph(){
-		memset(mat,0,sizeof(mat));
-		memset(degI,0,sizeof(degI));
-		memset(Priority,1,sizeof(Priority));
-	}
-	void init(){
-		memset(mat,0,sizeof(mat));
-		memset(degI,0,sizeof(degI));
-		memset(Priority,1,sizeof(Priority));
-	}
-	void add_edge(int u,int v){
-		degI[v] ++;
-		mat[u][v] = 1;
-	}
-	void topo(int l,int r){
-		//memset(mat,0,sizeof(mat));
-		queue<int> QQ;
-		//printf("L = %d , R= %d\n",l,r);
-		while(!QQ.empty())QQ.pop();
-		for(int i = l; i <= r; i++){
-			if(degI[i] == 0){
-				QQ.push(i);
-				Priority[i] = 1;
-			}
-		}
-		while(!QQ.empty()){
-			int i = QQ.front();
-			//printf("%d is front.\n",i);
-			for(int j = l; j <= r; j++){
-                //printf("deg of %d is %d\n",j,degI[j]);
-			}
-			for(int j = l; j <= r; j++){
-				if(mat[i][j]){
-					degI[j] --;
-					mat[i][j] = 0;
-					if(degI[j] == 0){
-                        Priority[j] = Priority[i] + 1;
-                        QQ.push(j);
-					}
-				}
-				//mat[i][j] = 0;
-			}
-			QQ.pop();
-		}
-	}
-}G2;
 struct Graph{
 	int mat[maxn][maxn],degI[maxn],degO[maxn];
 	int dfn[maxn],low[maxn],belong[maxn],Priority[maxn];
@@ -103,24 +39,10 @@ struct Graph{
 	}
 	void input_topo(FILE* fin);
 	int input_demand(FILE* fin);
-	bool findpath(int pres,int dem,int* limit,int* limite,int* Path);
-	void fillGraph2();
-	void getTarjan(int x);
-	void doTarjan();
-	int checkvalid(int* Path);
-	int countpath(vector<int> V);
-	void erasepoint(int x);
-	int cal_distT(int p);
 	void _Add_Constraint(int p,char type);
+	void InitSolver();
+	void WriteMPSFile(FILE* fout);
 }G;
-int Graph::cal_distT(int p){
-    if(p == Terminate)return dist_to_terminate[p] = 0;
-    if(dist_to_terminate[p] != 0x33)return dist_to_terminate[p];
-    for(vector<int>::iterator it = E[p].begin(); it != E[p].end(); it++){
-        dist_to_terminate[p] = min(dist_to_terminate[p],cal_distT(*it)+1);
-    }
-    return dist_to_terminate[p];
-}
 bool cmp_pn_1(int x,int y){
     return x > y;
 }
@@ -130,6 +52,59 @@ bool cmp_pn_2(int x,int y){
 bool cmp_pn_3(int x,int y){
     return G.dist_to_terminate[x] < G.dist_to_terminate[y];
 }
+void Graph::WriteMPSFile(FILE *fout){
+	fprintf(fout,"NAME\tcase\n");
+	fprintf(fout,"ROWS\n");
+	fprintf(fout," N\tobj\n");
+	for(int i = 1; i <= Nc; i++){
+		if(isnormal(i)){
+			fprintf(fout," E\tC(B.%03d)\n",i);
+			fprintf(fout," L\tC(L.%03d)\n",i);
+		}
+		else{
+			fprintf(fout," E\tC(I.%03d)\n",i);
+			fprintf(fout," E\tC(O.%03d)\n",i);
+		}
+	}
+	fprintf(fout,"COLUMNS\n");
+	for(int i = 0; i < Ec; i++){
+		int uu = M[line[i].u], vv = M[line[i].v],valval = line[i].val;
+		fprintf(fout," X(%03d)\t\tobj\t\t%d\n",i,valval);
+		if(isnormal(uu)){
+			fprintf(fout," X(%03d)\t\tC(B.%03d)\t-1\n",i,uu);
+			fprintf(fout," X(%03d)\t\tC(L.%03d)\t1\n",i,uu);
+		}
+		else{
+			fprintf(fout," X(%03d)\t\tC(O.%03d)\t1\n",i,uu);
+		}
+		if(isnormal(vv)){
+			fprintf(fout," X(%03d)\t\tC(B.%03d)\t1\n",i,vv);
+		}
+		else{
+			fprintf(fout," X(%03d)\t\tC(I.%03d)\t1\n",i,vv);
+		}
+	}
+	fprintf(fout,"RHS\n");
+	for(int i = 1; i <= Nc; i++){
+		if(isnormal(i)){
+			fprintf(fout," rhs\t\tC(B.%03d)\t1\n",i);
+			fprintf(fout," rhs\t\tC(L.%03d)\t1\n",i);
+		}
+		else{
+			int ci = 1,co = 1;
+			if(i==Start)ci--;
+			if(i==Terminate)co--;
+			fprintf(fout," rhs\t\tC(I.%03d)\t%d\n",i,ci);
+			fprintf(fout," rhs\t\tC(O.%03d)\t%d\n",i,co);
+		}
+	}
+	fprintf(fout,"BOUNDS\n");
+	for(int i = 0; i < Ec; i++){
+		fprintf(fout," BV bnd\t\tX(%03d)\n",i);
+	}
+	fprintf(fout,"ENDATA");
+}
+		
 void Graph::input_topo(FILE* fin){
 	int T = 0;
 	getedge.clear();
@@ -192,219 +167,71 @@ int Graph::input_demand(FILE* fin){
     DEMc++;
     return _OK;
 }
-void Graph::getTarjan(int x){
-    dfn[x] = low[x] = (++TM);
-    ST.push(x);
-    instack[x] = true;
-    vis_tar[x] = true;
-    for(int i = 1; i <= Nc; i++){
-        if(mat[x][i] != inf){
-            if(!vis_tar[i]){
-                getTarjan(i);
-                low[x] = min(low[x],low[i]);
-            }
-            else{
-                if(instack[i]){
-                    low[x] = min(low[x],dfn[i]);
-                }
-            }
-        }
-    }
-    if(low[x] == dfn[x]){
-        STRONG_CONNECT ++;
-        while(ST.top() != x){
-            belong[ST.top()] = STRONG_CONNECT;
-            instack[ST.top()] = false;
-            ST.pop();
-        }
-        belong[x] = STRONG_CONNECT;
-        instack[x] = false;
-        ST.pop();
-    }
+/* ********************************
+   *******************************
+   ******************************
+   *****************************
+*/
+/* Defining variables on CBC solver. */
+OsiClpSolverInterface solver1;
+OsiSolverInterface *solver = &solver1;
+CoinModel build;
+/* End */
+/* ********************************
+   *******************************
+   ******************************
+   *****************************
+*/
+void Graph::InitSolver(){
+	for(int i = 0; i < Ec; i++){
+		build.setColumnBounds(i,0,1);
+		build.setObjective(i,line[i].val);
+		build.setInteger(i);
+	}
 }
-void Graph::doTarjan(){
-    memset(vis_tar,0,sizeof(vis_tar));
-    memset(instack,0,sizeof(instack));
-    memset(belong,0,sizeof(belong));
-    TM = STRONG_CONNECT = 0;
-    for(int i = 1;i <= Nc; i++){
-        ;if(belong[i] == 0)getTarjan(i);
-    }
-}
-void Graph::fillGraph2(){
-    G2.init();
-    for(int i = 1; i <= Nc; i++){
-        for(vector<int>::iterator it = E[i].begin(); it != E[i].end(); it++){
-            if(belong[i] != belong[*it] && !G2.mat[belong[i]][belong[*it]])G2.add_edge(belong[i],belong[*it]);
-        }
-    }
-    G2.topo(1,STRONG_CONNECT);
-    for(int i = 1; i <= Nc; i++){
-        Priority[i] = G2.Priority[belong[i]];
-    }
-}
-void printgraph(Graph g){
-    for(int i = 1; i <= g.Nc; i++){
-        for(int j = 1; j <= g.Nc; j++){
-            printf("%d ",g.mat[i][j]);
-        }
-        puts("");
-    }
-    puts("");
-    for(int i = 1; i <= g.Nc; i++){
-        for(int j = 0; j < g.E[i].size(); j++){
-            printf("%d ",g.E[i][j]);
-        }
-        puts("");
-    }
-}
-void printpath(int* Path,FILE* fout){
-    fputs("",fout);
-    for(int i = 1; i <= Path[0]; i++){
-        if(i != 1)fputc('|',fout);
-        fprintf(fout,"%d",Path[i]);
-    }
-    fprintf(fout,"\n");
-}
-int Graph::checkvalid(int* Path){
-    if(Path[0] == 0)return 2;
-    if(Path[700] == 0)return 3;
-    bool visited[maxn];
-    visited[line[Path[1]].u] = true;
-    memset(visited,0,sizeof(visited));
-    for(int i = 1; i <= Path[0]; i++){
-        if(visited[line[Path[1]].v])return 1;
-        visited[line[Path[1]].v] = true;
-    }
-    int demcnt = 0;
-    if(isprimary[line[Path[1]].u])demcnt ++;
-    for(int i = 1; i <= Path[0]; i++){
-        if(isprimary[line[Path[1]].v])demcnt ++;
-    }
-    if(demcnt != DEMc)return 4;
-    return 0;
-}
-int Graph::countpath(vector<int> V){
-    int sum = 0;
-    for(int i = 0; i < V.size() - 1; i++){
-        sum += mat[V[i]][V[i+1]];
-    }
-    return sum;
-}
-void Graph::erasepoint(int x){
-    E[x].clear();
-    for(int i = 1; i <= Nc; i++){
-        if(mat[i][x] != inf){
-            for(vector<int>::iterator it = E[i].begin(); it != E[i].end(); it++){
-                if(*it == x){
-                    E[i].erase(it);
-                    break;
-                }
-            }
-        }
-    }
-    for(int i = 1; i <= Nc; i++){
-        mat[i][x] = mat[x][i] = inf;
-    }
-}
-bool Dealing1(Graph g){
-    for(int i = 1; i <= g.Nc; i++){
-        if(!g.isprimary[i])continue;
-        for(int j = 1; j <= g.Nc; j++){
-            if(!g.isprimary[j])continue;
-            if(g.Priority[i] == g.Priority[j] && g.belong[i] != g.belong[j])return false;
-        }
-    }
-    bool hasPrimary[maxn];
-    memset(hasPrimary,0,sizeof(hasPrimary));
-    for(int i = 1; i <= g.Nc; i++){
-        if(g.isprimary[i]){
-            hasPrimary[g.Priority[i]] = true;
-        }
-    }
-    for(int i = 1; i <= g.Nc; i++){
-        if(!g.isprimary[i] && hasPrimary[g.Priority[i]])g.erasepoint(i);
-    }
-    return true;
-}
-lprec* lp;
 void Graph::_Add_Constraint(int p,char type){
-	//memset(row,0,sizeof(row));
-	//0: Start Point
-	//1: Terminate Point
-	//2: Designated Point
-	//3: Normal Point
 	int cc = E[p].size(), rcc = RE[p].size();
-	/*puts("");
-	puts("***********************");
-	printf("Node %d. CC = %d , RCC = %d\n",p,cc,rcc);
-	puts("CC:");
-	for(int i = 0; i < cc; i++){
-		printf("%d -> %d : Line Number %d.\n",p,E[p][i],F[p][i]);
+	double row[50];
+	int colno[50];
+	if(type <= 2){
+		int ic = (type==0?0:1), oc = (type==1?0:1);
+		for(int i = 0; i < rcc; i++){
+			row[i] = 1;
+			colno[i] = RF[p][i];
+		}
+		build.addRow(rcc,colno,row,ic,ic);
+		for(int i = 0; i < cc; i++){
+			row[i] = 1;
+			colno[i] = F[p][i];
+		}
+		build.addRow(cc,colno,row,oc,oc);
 	}
-	puts("RCC:");
-	for(int i = 0; i < rcc; i++){
-		printf("%d -> %d : Line Number %d.\n",RE[p][i],p,RF[p][i]);
-	}
-	puts("***********************");
-	puts("");*/
-	REAL row[50];
-	int colno[20];
-	for(int i = 0; i < rcc; i++){
-		row[i] = 1;
-		colno[i] = RF[p][i] + 1;
-	}
-	row[rcc]=-1;
-	colno[rcc]=YStart+2*p-1;
-	add_constraintex(lp,rcc+1,row,colno,EQ,0);
-	for(int i = 0; i < cc; i++){
-		row[i] = 1;
-		colno[i] = F[p][i] + 1;
-	}
-	row[cc]=-1;
-	colno[cc]=YStart+2*p;
-	add_constraintex(lp,cc+1,row,colno,EQ,0);
-	if(type == 0){
-		set_bounds(lp,YStart+2*p-1,0,0);
-		set_bounds(lp,YStart+2*p,1,1);
-	}
-	if(type == 1){
-		set_bounds(lp,YStart+2*p-1,1,1);
-		set_bounds(lp,YStart+2*p,0,0);
-	}
-	if(type == 2){
-		set_bounds(lp,YStart+2*p-1,1,1);
-		set_bounds(lp,YStart+2*p,1,1);
-	}
-	if(type == 3){
-		row[0]=1;
-		row[1]=-1;
-		colno[0]=YStart+2*p-1;
-		colno[1]=YStart+2*p;
-		add_constraintex(lp,2,row,colno,EQ,0);
+	else{
+		for(int i = 0; i < rcc; i++){
+			row[i] = 1;
+			colno[i] = RF[p][i];
+		}
+		build.addRow(rcc,colno,row,0,1);
+		for(int i = 0; i < cc; i++){
+			row[rcc+i] = -1;
+			colno[rcc+i] = F[p][i];
+		}
+		build.addRow(cc+rcc,colno,row,0,0);
 	}
 }
-REAL ans[20000];
-void Print_Answer(FILE *fout,lprec *lp){
+double ans[20000];
+void Print_Answer(FILE *fout,CbcModel mip){
 	int pres = G.Start;
-	int ConstraintC = get_Nrows(lp), VariableC = get_Ncolumns(lp);
-	int longsam = 0;
-	get_primal_solution(lp,ans);
-	REAL *x = ans+ConstraintC+1;
-	/*for(int i = 0; i < ConstraintC+VariableC+2; i++){
-		printf("Ans[%d] = %d\n",i,int(ans[i]+0.5));
-	}
-	for(int i = 1; i <= VariableC; i++){
-		printf("Var %d = %d\n",i,int(x[i-1]+0.5));
-	}*/
+	int ConstraintC = mip.getNumRows(), VariableC = mip.getNumCols();
+	int longsam = (int)(mip.getObjValue());
+	double x[700];
+	memcpy(x,mip.getColSolution(),sizeof(double)*mip.getNumCols());
 	while(pres != G.Terminate){
 #ifdef TEST_LOCAL973
 		printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
-		//getchar();
 #endif
 		for(int i = 0; i < G.F[pres].size(); i++){
 			if(int(x[G.F[pres][i]]+0.5) == 1){
-				longsam+=G.line[G.F[pres][i]].val;
 				if(pres != G.Start){
 					fprintf(fout,"|");
 				}
@@ -424,27 +251,35 @@ void Print_Answer(FILE *fout,lprec *lp){
 	fprintf(fout,"\nLength = %d\n",longsam);
 #endif
 }
-bool hasring(lprec* lp,REAL* sol){
-	int Cc = get_Nrows(lp), Vc = get_Ncolumns(lp);	
+
+void printlist(CbcModel mip){
+	puts("Objective Coeffecients:");
+	const double *co = mip.getObjCoefficients();
+	for(int i = 0; i < mip.getNumCols(); i++){
+		printf("%.3lf ",co[i]);
+	}
+	puts("");
+} 
+bool hasring(CbcModel mip,double *sol){
+	int Cc = mip.getNumRows(), Vc = mip.getNumCols();	
 	int pres = G.Start;
-	int ConstraintC = get_Nrows(lp), VariableC = get_Ncolumns(lp);
-	int longsam = 0,cnt;
+	int cnt;
 	bool retval=false,visited[700];
-	REAL row1[700];
+	double row1[700];
 	int colno1[700];
 	memset(visited,0,sizeof(visited));
 	visited[G.Start] = true;
-	get_primal_solution(lp,ans);
-	REAL *x = ans+ConstraintC+1;
+	double *x = sol;
+	//printlist(mip);
 	while(pres != G.Terminate){
 #ifdef TEST_LOCAL973
 		printf("PRES = %d REALPRES = %d\n",pres+G.Ec,G.revhash[pres]);
-		//getchar();
 #endif
 		for(int i = 0; i < G.F[pres].size(); i++){
 			if(int(x[G.F[pres][i]]+0.5) == 1){
-				longsam+=G.line[G.F[pres][i]].val;
+#ifdef TEST_LOCAL973
 				printf("Choose Line %d\n",G.F[pres][i]);
+#endif
 				pres = G.E[pres][i];
 				break;
 			}
@@ -469,11 +304,11 @@ bool hasring(lprec* lp,REAL* sol){
 			while(1){
 				for(int j = 0; j < G.F[pres].size(); j++){
 #ifdef TEST_LOCAL973
-					printf("Line %d: X(j) == %.3lf\n",G.F[pres][j],ans[Cc+j+1]);
+					printf("Line %d: X(j) == %.3lf\n",G.F[pres][j],x[j]);
 #endif
 					if(int(x[G.F[pres][j]]+0.5) == 1){
 						row1[cnt] = 1;
-						colno1[cnt] = G.F[pres][j]+1;
+						colno1[cnt] = G.F[pres][j];
 						cnt++;
 						pres = G.E[pres][j];
 						break;
@@ -489,47 +324,36 @@ bool hasring(lprec* lp,REAL* sol){
 #ifdef TEST_LOCAL973
 			printf("CNT = %d\n",cnt);
 #endif
-			if(cnt>0)add_constraintex(lp,cnt,row1,colno1,LE,cnt-1);
+			if(cnt>0)build.addRow(cnt,colno1,row1,0,cnt-1);
+			mip.solver()->loadFromCoinModel(build);
 		}
 	}
+	printf("This solution is %s\n",retval?"OK":"NOT OK");
 	return retval;
 }
 int LMT;
 int main(int argc,char* argv[]){
-	freopen("logs.txt","w",stdout);
-	REAL row[9000],row3[4];
+	//freopen("logs.txt","w",stdout);
+	double row[9000],row3[4];
 	int colno3[4];
 	int _TIME = 18;
-	lprec* anslp = NULL;
     srand((unsigned int)time(0));
     FILE* fin0 = fopen(argv[1],"r");
     FILE* fin1 = fopen(argv[2],"r");
     FILE* fout0 = fopen(argv[3],"w");
+	FILE* mps = fopen("dat2.mps","w");
     G.input_topo(fin0);
     G.input_demand(fin1);
     fclose(fin0);
     fclose(fin1);
-    lp = make_lp(0,G.Ec+2*G.Nc);
+	G.WriteMPSFile(mps);
+	fclose(mps);
+	G.InitSolver();
 	LMT = min(G.Nc,150);
-	if(lp == NULL){
-		fclose(fout0);
-		return 0;
-	}
 #ifdef TEST_LOCAL973
 	puts("Success in building");
  #endif
-	memset(row,0,sizeof(row));
-	for(int i = 1; i <= G.Ec; i++){
-		row[i] = G.line[i-1].val;
-		set_binary(lp,i,TRUE);
-	}
-	for(int i = YStart+1; i <= YStart + G.Nc*2; i++){
-		set_binary(lp,i,TRUE);
-	}
-	set_obj_fn(lp,row);
-	set_timeout(lp,_TIME);
-	set_add_rowmode(lp,TRUE);
-	for(int i = 1; i <= G.Nc; i++){
+	/*for(int i = 1; i <= G.Nc; i++){
 		if(i == G.Start || i == G.Terminate){
 			if(i == G.Start)G._Add_Constraint(i,0);
 			else G._Add_Constraint(i,1);
@@ -539,7 +363,7 @@ int main(int argc,char* argv[]){
 			else G._Add_Constraint(i,3);
 		}
 	}
-	REAL row1[10];
+	double row1[10];
 	int colno1[10];
 	for(int i = 1; i <= G.Nc; i++){
 		for(int j = 1; j <= G.Nc; j++){
@@ -548,43 +372,116 @@ int main(int argc,char* argv[]){
 				int ij = G.getedge[i*1000+j]+1, ji = G.getedge[j*1000+i]+1;
 				row1[0]=row1[1] = 1;
 				colno1[0]=ij,colno1[1]=ji;
-				add_constraintex(lp,2,row1,colno1,LE,1);
+				build.addRow(2,colno1,row1,0,1);
 			}
 		}
 	}				
-	set_improve(lp,15);
-	set_print_sol(lp,2);
-	set_simplextype(lp,10);
-	set_add_rowmode(lp,FALSE);
-	set_debug(lp,TRUE);
-	//print_lp(lp);
-	int ret = solve(lp);
-	get_primal_solution(lp,ans);
+	solver->loadFromCoinModel(build);
+	*/
+	solver1.readMps("dat2.mps","");
+	OsiSolverInterface *solver2(&solver1);
+	CbcModel mip(*solver2);
+	//mip.solver()->setHintParam(OsiDoReducePrint,true,OsiHintTry);
+	mip.setMaximumSeconds(9.7-(clock()-t1)/CLOCKS_PER_SEC);
+//CbcModel model(*solver);
+  model.solver()->setHintParam(OsiDoReducePrint,true,OsiHintTry);
+
+
+  // Set up some cut generators and defaults
+  // Probing first as gets tight bounds on continuous
+
+  CglProbing generator1;
+  generator1.setUsingObjective(true);
+  generator1.setMaxPass(3);
+  generator1.setMaxProbe(100);
+  generator1.setMaxLook(50);
+  generator1.setRowCuts(3);
+  //  generator1.snapshot(*model.solver());
+  //generator1.createCliques(*model.solver(),2,1000,true);
+  //generator1.setMode(0);
+
+  CglGomory generator2;
+  // try larger limit
+  generator2.setLimit(300);
+
+  CglKnapsackCover generator3;
+
+  CglOddHole generator4;
+  generator4.setMinimumViolation(0.005);
+  generator4.setMinimumViolationPer(0.00002);
+  // try larger limit
+  generator4.setMaximumEntries(200);
+
+  CglClique generator5;
+  generator5.setStarCliqueReport(false);
+  generator5.setRowCliqueReport(false);
+
+  CglMixedIntegerRounding mixedGen;
+  CglFlowCover flowGen;
+  
+  // Add in generators
+  model.addCutGenerator(&generator1,-1,"Probing");
+  model.addCutGenerator(&generator2,-1,"Gomory");
+  model.addCutGenerator(&generator3,-1,"Knapsack");
+  model.addCutGenerator(&generator4,-1,"OddHole");
+  model.addCutGenerator(&mixedGen,-1,"MixedIntegerRounding");
+
+  OsiClpSolverInterface * osiclp = dynamic_cast< OsiClpSolverInterface*> (model.solver());
+  // go faster stripes
+  if (osiclp->getNumRows()<300&&osiclp->getNumCols()<500) {
+    osiclp->setupForRepeatedUse(2,0);
+    printf("trying slightly less reliable but faster version (? Gomory cuts okay?)\n");
+    printf("may not be safe if doing cuts in tree which need accuracy (level 2 anyway)\n");
+  }
+
+  // Allow rounding heuristic
+
+  CbcRounding heuristic1(model);
+  model.addHeuristic(&heuristic1);
+
+  // And local search when new solution found
+
+  CbcHeuristicLocal heuristic2(model);
+  model.addHeuristic(&heuristic2);
+
+
+  // Do initial solve to continuous
+  model.initialSolve();
+
+  // Could tune more
+  model.setMinimumDrop(CoinMin(1.0,
+			     fabs(model.getMinimizationObjValue())*1.0e-3+1.0e-4));
+
+  if (model.getNumCols()<500)
+    model.setMaximumCutPassesAtRoot(-100); // always do 100 if possible
+  else if (model.getNumCols()<5000)
+    model.setMaximumCutPassesAtRoot(100); // use minimum drop
+  else
+    model.setMaximumCutPassesAtRoot(20);
+  //model.setMaximumCutPasses(5);
+
+  // Switch off strong branching if wanted
+  // model.setNumberStrong(0);
+  // Do more strong branching if small
+  if (model.getNumCols()<5000)
+    model.setNumberStrong(10);
+	mip.initialSolve();
+	mip.branchAndBound();
+	memcpy(ans,mip.getColSolution(),sizeof(double)*mip.getNumCols());
+	printf("Result is %s\n",mip.isProvenOptimal()?"OPTIMAL":"NOT OPTIMAL");
 	bool ok1;
-	while((ok1=(hasring(lp,ans))) || ret != OPTIMAL ){
+	while((ok1=(hasring(mip,ans)) )){
 		if(clock()-t1>9.7*CLOCKS_PER_SEC)break;
-		ret = solve(lp);
-		if(!ok1){
-			anslp=copy_lp(lp);
-		}
-		get_primal_solution(lp,ans);
-		//getchar();
+		mip.setMaximumSeconds(9.7-(clock()-t1)/CLOCKS_PER_SEC);
+		mip.branchAndBound();
+		memcpy(ans,mip.getColSolution(),sizeof(double)*mip.getNumCols());
 	}
-#ifdef TEST_LOCAL973
-	print_solution(lp,1);
-#endif
-	if((ret == SUBOPTIMAL || ret == OPTIMAL || ret == PRESOLVED || ret == FEASFOUND)){
-		Print_Answer(fout0,lp);
+	if(mip.getSolutionCount()>0){
+		Print_Answer(fout0,mip);
 	}
 	else{
-		if(anslp!=NULL){
-			solve(anslp);
-			Print_Answer(fout0,anslp);
-		}
-		else fprintf(fout0,"NA");
+		fprintf(fout0,"NA");
 	}
 	fclose(fout0);
-	delete_lp(lp);
-	//fprintf(fout0,"\n%d",MinRoute[700]);
     return 0;
 }
